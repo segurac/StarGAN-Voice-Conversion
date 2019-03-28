@@ -38,20 +38,38 @@ def resample_to_16k(origin_wavpath, target_wavpath, num_workers=1):
 
 def split_data(paths):
     indices = np.arange(len(paths))
-    test_size = 0.1
+    test_size = 0.0
     train_indices, test_indices = train_test_split(indices, test_size=test_size, random_state=1234)
-    train_paths = list(np.array(paths)[train_indices])
+    train_paths = list(np.array(paths)[indices])
     test_paths = list(np.array(paths)[test_indices])
     return train_paths, test_paths
 
 def get_spk_world_feats(spk_fold_path, mc_dir_train, mc_dir_test, sample_rate=16000):
     paths = glob.glob(join(spk_fold_path, '*.wav'))
+    print("Got ", len(paths), " wav files")
     spk_name = basename(spk_fold_path)
     train_paths, test_paths = split_data(paths)
+    print("Splitting training with ", len(paths), " wav files")
+    #return(len(paths))
     f0s = []
     coded_sps = []
-    for wav_file in train_paths:
-        f0, _, _, _, coded_sp = world_encode_wav(wav_file, fs=sample_rate)
+    #for wav_file in train_paths:
+        #f0, _, _, _, coded_sp = world_encode_wav(wav_file, fs=sample_rate)
+        #f0s.append(f0)
+        #coded_sps.append(coded_sp)
+    #log_f0s_mean, log_f0s_std = logf0_statistics(f0s)
+    #coded_sps_mean, coded_sps_std = coded_sp_statistics(coded_sps)
+    #np.savez(join(mc_dir_train, spk_name+'_stats.npz'), 
+            #log_f0s_mean=log_f0s_mean,
+            #log_f0s_std=log_f0s_std,
+            #coded_sps_mean=coded_sps_mean,
+            #coded_sps_std=coded_sps_std)
+    
+    for wav_file in tqdm(train_paths):
+        wav_nam = basename(wav_file)
+        f0, timeaxis, sp, ap, coded_sp = world_encode_wav(wav_file, fs=sample_rate)
+        normed_coded_sp = normalize_coded_sp(coded_sp, coded_sps_mean, coded_sps_std)
+        np.save(join(mc_dir_train, wav_nam.replace('.wav', '.npy')), normed_coded_sp, allow_pickle=False)
         f0s.append(f0)
         coded_sps.append(coded_sp)
     log_f0s_mean, log_f0s_std = logf0_statistics(f0s)
@@ -61,12 +79,6 @@ def get_spk_world_feats(spk_fold_path, mc_dir_train, mc_dir_test, sample_rate=16
             log_f0s_std=log_f0s_std,
             coded_sps_mean=coded_sps_mean,
             coded_sps_std=coded_sps_std)
-    
-    for wav_file in tqdm(train_paths):
-        wav_nam = basename(wav_file)
-        f0, timeaxis, sp, ap, coded_sp = world_encode_wav(wav_file, fs=sample_rate)
-        normed_coded_sp = normalize_coded_sp(coded_sp, coded_sps_mean, coded_sps_std)
-        np.save(join(mc_dir_train, wav_nam.replace('.wav', '.npy')), normed_coded_sp, allow_pickle=False)
     
     for wav_file in tqdm(test_paths):
         wav_nam = basename(wav_file)
@@ -103,18 +115,28 @@ if __name__ == '__main__':
     num_workers = argv.num_workers if argv.num_workers is not None else cpu_count()
 
     # The original wav in VCTK is 48K, first we want to resample to 16K
-    resample_to_16k(origin_wavpath, target_wavpath, num_workers=num_workers)
+    #resample_to_16k(origin_wavpath, target_wavpath, num_workers=num_workers)
 
+    
     # WE only use 10 speakers listed below for this experiment.
-    speaker_used = ['262', '272', '229', '232', '292', '293', '360', '361', '248', '251']
-    speaker_used = ['p'+i for i in speaker_used]
+    
+    speaker_used = []
+    with open('spk_ids.txt','r') as stream:
+        for line in stream:
+            line = line.strip()
+            speaker_used.append(line)
+    print(speaker_used)
+    
+    #speaker_used = ['262', '272', '229', '232', '292', '293', '360', '361', '248', '251']
+    #speaker_used = ['p'+i for i in speaker_used]
+    speaker_used = ['p315']
 
     ## Next we are to extract the acoustic features (MCEPs, lf0) and compute the corresponding stats (means, stds). 
     # Make dirs to contain the MCEPs
     os.makedirs(mc_dir_train, exist_ok=True)
     os.makedirs(mc_dir_test, exist_ok=True)
 
-    num_workers = len(speaker_used) #cpu_count()
+    num_workers = 52 #len(speaker_used) #cpu_count()
     print("number of workers: ", num_workers)
     executor = ProcessPoolExecutor(max_workers=num_workers)
 
