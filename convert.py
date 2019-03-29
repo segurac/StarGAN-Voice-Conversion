@@ -117,36 +117,40 @@ def test(config):
     print(config.convert_list)
     with open(config.convert_list, 'r') as stream:
         for line in stream:
-            #[wavfile, src, trg] = line.strip().split()
-            #wav_id = wavfile.split("_")[1]
-            #wavfile = join(config.wav_dir, wavfile + ".wav")
-            #print(wavfile)
-            break
-            #wav = load_wav(wavfile, sampling_rate)
-            #with torch.no_grad():
-                #f0, timeaxis, sp, ap = world_decompose(wav=wav, fs=sampling_rate, frame_period=frame_period)
-                #f0_converted = pitch_conversion(f0=f0, 
-                    #mean_log_src=spkstats[src].logf0s_mean_src, std_log_src=spkstats[src].logf0s_std_src, 
-                    #mean_log_target=spkstats[trg].logf0s_mean_src, std_log_target=spkstats[trg].logf0s_std_src)
-                #coded_sp = world_encode_spectral_envelop(sp=sp, fs=sampling_rate, dim=num_mcep)
-                #print("Before being fed into G: ", coded_sp.shape)
-                #coded_sp_norm = (coded_sp - spkstats[src].mcep_mean_src) / spkstats[src].mcep_std_src
-                #coded_sp_norm_tensor = torch.FloatTensor(coded_sp_norm.T).unsqueeze_(0).unsqueeze_(1).to(device)
-                #spk_conds = torch.FloatTensor(spkstats[trg].spk_c_src).to(device)
-                ## print(spk_conds.size())
-                #coded_sp_converted_norm = G(coded_sp_norm_tensor, spk_conds).data.cpu().numpy()
-                #coded_sp_converted = np.squeeze(coded_sp_converted_norm).T * spkstats[trg].mcep_std_src + spkstats[trg].mcep_mean_src
-                #coded_sp_converted = np.ascontiguousarray(coded_sp_converted)
-                #print("After being fed into G: ", coded_sp_converted.shape)
-                #wav_transformed = world_speech_synthesis(f0=f0_converted, coded_sp=coded_sp_converted, 
-                                                        #ap=ap, fs=sampling_rate, frame_period=frame_period)
-                #wav_id = wav_name.split('.')[0]
-                #librosa.output.write_wav(join(config.convert_dir, str(config.resume_iters),
-                    #f'{wav_id}-vcto-{.trg}.wav'), wav_transformed, sampling_rate)
-                #if [True, False][0]:
-                    #wav_cpsyn = world_speech_synthesis(f0=f0, coded_sp=coded_sp, 
-                                                    #ap=ap, fs=sampling_rate, frame_period=frame_period)
-                    #librosa.output.write_wav(join(config.convert_dir, str(config.resume_iters), f'cpsyn-{wav_name}'), wav_cpsyn, sampling_rate)
+            [wavfile, src, trg] = line.strip().split()
+            print(wavfile, src, trg)
+            wav_id = wavfile.split("_")[1]
+            wavfile = join(config.wav_dir, wavfile + ".wav")
+            print(wavfile)
+            #break
+            wav = load_wav(wavfile, sampling_rate)
+            with torch.no_grad():
+                f0, timeaxis, sp, ap = world_decompose(wav=wav, fs=sampling_rate, frame_period=frame_period)
+                f0_converted = pitch_conversion(f0=f0, 
+                    mean_log_src=spkstats[src].logf0s_mean_src, std_log_src=spkstats[src].logf0s_std_src, 
+                    mean_log_target=spkstats[trg].logf0s_mean_src, std_log_target=spkstats[trg].logf0s_std_src)
+                coded_sp = world_encode_spectral_envelop(sp=sp, fs=sampling_rate, dim=num_mcep)
+                print("Before being fed into G: ", coded_sp.shape)
+                coded_sp_norm = (coded_sp - spkstats[src].mcep_mean_src) / spkstats[src].mcep_std_src
+                coded_sp_norm_tensor = torch.FloatTensor(coded_sp_norm.T).unsqueeze_(0).unsqueeze_(1).to(device)
+                spk_conds = torch.FloatTensor(spkstats[trg].spk_c_src).to(device)
+                print(spk_conds.size())
+                coded_sp_converted_norm = G(coded_sp_norm_tensor, spk_conds).data.cpu().numpy()
+                coded_sp_converted = np.squeeze(coded_sp_converted_norm).T * spkstats[trg].mcep_std_src + spkstats[trg].mcep_mean_src
+                coded_sp_converted = np.ascontiguousarray(coded_sp_converted)
+                print("After being fed into G: ", coded_sp_converted.shape)
+                wav_transformed = world_speech_synthesis(f0=f0_converted, coded_sp=coded_sp_converted, 
+                                                        ap=ap, fs=sampling_rate, frame_period=frame_period)
+                wav_name = wavfile.split('/')[-1]
+                print(wav_name)
+                wav_id = wav_name.split('.')[0]
+                print(wav_id)
+                librosa.output.write_wav(join(config.convert_dir, str(config.resume_iters),
+                    f'{wav_id}-vcto-{trg}.wav'), wav_transformed, sampling_rate)
+                if [True, False][0]:
+                    wav_cpsyn = world_speech_synthesis(f0=f0, coded_sp=coded_sp, 
+                                                    ap=ap, fs=sampling_rate, frame_period=frame_period)
+                    librosa.output.write_wav(join(config.convert_dir, str(config.resume_iters), f'cpsyn-{wav_name}'), wav_cpsyn, sampling_rate)
                 
 
     ### Read a batch of testdata
@@ -187,7 +191,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Model configuration.
-    parser.add_argument('--num_speakers', type=int, default=109, help='dimension of speaker labels')
+    parser.add_argument('--num_speakers', type=int, default=108, help='dimension of speaker labels')
     parser.add_argument('--num_converted_wavs', type=int, default=8, help='number of wavs to convert.')
     parser.add_argument('--resume_iters', type=int, default=None, help='step to resume for testing.')
     #parser.add_argument('--src_spk', type=str, default='p262', help = 'target speaker.')
